@@ -1,18 +1,30 @@
-# Salesforce DX Project: Next Steps
+# Junior Salesforce Engineer Case Study - Bonial
 
-Now that you’ve created a Salesforce DX project, what’s next? Here are some documentation resources to get you started.
+## Overview
+This project implements an automated tracking system for **Projects** linked to **Accounts**. It ensures data integrity through Apex triggers and provides a modern UI using Lightning Web Components (LWC).
 
-## How Do You Plan to Deploy Your Changes?
+## Key Features
+*   **Automation:** Apex Trigger/Handler to maintain a roll-up count of Projects on the Parent Account (`Total_Projects__c`).
+*   **Data Integrity:** Bulk-safe logic that handles project creation, deletion, and account re-parenting.
+*   **Custom UI:** A Lightning Web Component that displays related projects with:
+    *   Client-side filtering (Show only 'Active' projects).
+    *   Pagination for large data sets.
+    *   Dynamic total project badges.
+*   **Testing:** 100% unit test coverage ensuring robust logic across edge cases.
 
-Do you want to deploy a set of changes, or create a self-contained application? Choose a [development model](https://developer.salesforce.com/tools/vscode/en/user-guide/development-models).
+## Technical Stack
+*   **Apex:** Trigger Framework, Aggregate SOQL, Test Classes.
+*   **LWC:** Wire Service, Tracked properties, Lightning Datatable.
+*   **SOQL:** Optimized queries with limits for performance.
 
-## Configure Your Salesforce DX Project
+*   ## File Structure & Brief Explanation
 
-The `sfdx-project.json` file contains useful configuration information for your project. See [Salesforce DX Project Configuration](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_ws_config.htm) in the _Salesforce DX Developer Guide_ for details about this file.
+### Backend (Apex & Triggers)
+*   **ProjectTrigger.trigger**: The entry point for automation. It listens for Insert, Update, Delete, and Undelete events on Projects.
+*   **ProjectTriggerHandler.cls**: The "Brain" of the automation. It contains the logic to calculate the number of projects per Account using Aggregate SOQL.
+*   **ProjectController.cls**: The API for the LWC. It fetches Account details and related Project records efficiently in a single server call.
+*   **ProjectTriggerTest.cls & ProjectControllerTest.cls**: Comprehensive test suites that simulate bulk data (200+ records) and edge cases like record re-parenting.
 
-## Read All About It
-
-- [Salesforce Extensions Documentation](https://developer.salesforce.com/tools/vscode/)
-- [Salesforce CLI Setup Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_setup.meta/sfdx_setup/sfdx_setup_intro.htm)
-- [Salesforce DX Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.sfdx_dev.meta/sfdx_dev/sfdx_dev_intro.htm)
-- [Salesforce CLI Command Reference](https://developer.salesforce.com/docs/atlas.en-us.sfdx_cli_reference.meta/sfdx_cli_reference/cli_reference.htm)
+### Frontend (LWC)
+*   **`projectList.html`**: The UI template using `lightning-datatable` and `lightning-button` for a clean user experience.
+*   **`projectList.js`**: The logic layer that handles pagination, toggling the "Active" status filter, and wiring data from Apex.
