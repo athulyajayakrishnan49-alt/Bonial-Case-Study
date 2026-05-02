@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    <!-- isExposed must be true so it can be used in App Builder -->
+    <isExposed>true</isExposed>
+    <masterLabel>Project List Component</masterLabel>
+    <description>Displays related projects for an Account with filtering options.</description>
+    <targets>
+        <!-- This allows the component to be placed on a Record Page -->
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <!-- This restricts the component specifically to Account pages -->
+        <targetConfig targets="lightning__RecordPage">
+            <objects>
+                <object>Account</object>
+            </objects>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

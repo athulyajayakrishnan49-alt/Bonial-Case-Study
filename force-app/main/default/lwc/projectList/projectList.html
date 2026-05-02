@@ -1,0 +1,41 @@
+<template>
+    <lightning-card title="Related Projects" icon-name="standard:case">
+
+        <div slot="actions">
+            <span class="slds-badge slds-theme_success">
+                Total Projects: {accountTotalProjects}
+            </span>
+        </div>
+
+        <div class="slds-p-around_medium">
+
+            <lightning-input 
+                type="toggle" 
+                label="Show Only Active" 
+                onchange={handleToggleChange}>
+            </lightning-input>
+
+            <template if:true={hasProjects}>
+                <lightning-datatable
+                    key-field="Id"
+                    data={displayedProjects}
+                    columns={columns}
+                    hide-checkbox-column>
+                </lightning-datatable>
+
+                <div class="slds-m-top_small slds-align_absolute-center">
+                    <lightning-button label="Previous" onclick={handlePrevious} disabled={isFirstPage}></lightning-button>
+                    <span class="slds-p-horizontal_medium">Page {pageNumber} of {totalPages}</span>
+                    <lightning-button label="Next" onclick={handleNext} disabled={isLastPage}></lightning-button>
+                </div>
+            </template>
+
+            <template if:false={hasProjects}>
+                <div class="slds-text-align_center slds-p-around_medium">
+                    <p>{emptyMessage}</p>
+                </div>
+            </template>
+
+        </div>
+    </lightning-card>
+</template>
