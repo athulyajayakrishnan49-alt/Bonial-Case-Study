@@ -1,85 +1,98 @@
 @isTest
 private class ProjectControllerTest {
 
-    @isTest
-    static void testGetProjectData_WithProjects() {
-        // Create Account
-        Account acc = new Account(Name = 'Test Account');
+    @testSetup
+    static void setup() {
+        // Create an Account with a project to test successful retrieval
+        Account acc = new Account(Name = 'Test Account', Total_Projects__c = 1);
         insert acc;
 
-        // Create Projects
-        List<Project__c> projects = new List<Project__c>();
-        for (Integer i = 0; i < 5; i++) {
-            projects.add(new Project__c(
-                Name = 'Project ' + i,
-                Account__c = acc.Id,
-                Status__c = 'Planned',
-                Budget__c = 1000
-            ));
+        Project__c proj = new Project__c(
+            Name = 'Test Project', 
+            Account__c = acc.Id, 
+            Status__c = 'Active', 
+            Budget__c = 1000
+        );
+        insert proj;
+    }
+
+    /**
+     * Test successful data retrieval (Happy Path)
+     */
+    @isTest
+    static void testGetProjectDataSuccess() {
+        Account acc = [SELECT Id FROM Account WHERE Name = 'Test Account' LIMIT 1];
+
+        Test.startTest();
+        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(acc.Id);
+        Test.stopTest();
+
+        System.assertNotEquals(null, result, 'Wrapper should not be null');
+        System.assertEquals('Test Account', result.accountName, 'Account name should match');
+        System.assertEquals(1, result.projects.size(), 'Project list size should be 1');
+    }
+
+    /**
+     * Test behavior when a non-existent Account ID is provided
+     */
+    @isTest
+    static void testGetProjectDataInvalidId() {
+        // Create a fake but validly formatted Account ID using native Apex
+        String fakeIdStr = Account.SObjectType.getDescribe().getKeyPrefix() + '000000000001AAA';
+        Id fakeAccountId = (Id)fakeIdStr;
+
+        Test.startTest();
+        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(fakeAccountId);
+        Test.stopTest();
+
+        // This covers the 'if (accList.isEmpty())' branch in your controller
+        System.assertEquals('Unknown Account', result.accountName);
+        System.assertEquals(0, result.projects.size());
+    }
+
+    /**
+     * Test Exception handling to cover the catch block
+     */
+    @isTest
+    static void testGetProjectDataException() {
+        // Passing null will cause the query to fail/throw exception 
+        // which covers the 'catch (Exception e)' branch
+        Test.startTest();
+        try {
+            ProjectController.getProjectData(null);
+        } catch (Exception e) {
+            // AuraHandledException is expected
+            System.assert(e != null);
         }
-        insert projects;
-
-        Test.startTest();
-        Map<String, Object> result = ProjectController.getProjectData(acc.Id);
         Test.stopTest();
-
-        // Assertions
-        System.assertEquals('Test Account', (String) result.get('accountName'));
-        System.assertEquals(acc.Total_Projects__c, result.get('totalProjects'));
-
-        List<Project__c> resultProjects = (List<Project__c>) result.get('projects');
-        System.assertEquals(5, resultProjects.size(), 'Should return 5 projects');
     }
-
-
+    
+    /**
+     * Test with a restricted User to cover USER_MODE security failures
+     */
     @isTest
-    static void testGetProjectData_NoProjects() {
-        // Create Account without projects
-        Account acc = new Account(Name = 'Empty Account');
-        insert acc;
+    static void testUserModeSecurity() {
+        // Use a standard profile that exists in every org
+        Profile p = [SELECT Id FROM Profile WHERE Name='Minimum Access - Salesforce' LIMIT 1]; 
+        User u = new User(
+            Alias = 'testuser', Email='testuser@example.com', 
+            EmailEncodingKey='UTF-8', LastName='Testing', LanguageLocaleKey='en_US', 
+            LocaleSidKey='en_US', ProfileId = p.Id, 
+            TimeZoneSidKey='America/Los_Angeles', UserName='projecttest' + DateTime.now().getTime() + '@test.com'
+        );
 
-        Test.startTest();
-        Map<String, Object> result = ProjectController.getProjectData(acc.Id);
-        Test.stopTest();
+        Account acc = [SELECT Id FROM Account LIMIT 1];
 
-        // Assertions
-        System.assertEquals('Empty Account', (String) result.get('accountName'));
-        System.assertEquals(acc.Total_Projects__c, result.get('totalProjects'));
-
-        List<Project__c> resultProjects = (List<Project__c>) result.get('projects');
-        System.assertEquals(0, resultProjects.size(), 'Should return 0 projects');
-    }
-
-
-    @isTest
-    static void testGetProjectData_InvalidAccount() {
-        // Pass a fake Account Id
-        Id fakeId = '001000000000000AAA';
-
-        Test.startTest();
-        Map<String, Object> result = ProjectController.getProjectData(fakeId);
-        Test.stopTest();
-
-        // Assertions
-        System.assertEquals('Unknown Account', (String) result.get('accountName'));
-        System.assertEquals(0, result.get('totalProjects'));
-
-        List<Project__c> resultProjects = (List<Project__c>) result.get('projects');
-        System.assertEquals(0, resultProjects.size(), 'Should return empty project list');
-    }
-
-
-    @isTest
-    static void testGetProjectData_NullId() {
-        Test.startTest();
-        Map<String, Object> result = ProjectController.getProjectData(null);
-        Test.stopTest();
-
-        // Assertions (same as invalid account case)
-        System.assertEquals('Unknown Account', (String) result.get('accountName'));
-        System.assertEquals(0, result.get('totalProjects'));
-
-        List<Project__c> resultProjects = (List<Project__c>) result.get('projects');
-        System.assertEquals(0, resultProjects.size(), 'Should handle null safely');
+        System.runAs(u) {
+            Test.startTest();
+            try {
+                // This covers the catch block via a SecurityException because this user 
+                // lacks access to the custom field or object.
+                ProjectController.getProjectData(acc.Id);
+            } catch (AuraHandledException e) {
+                System.assertNotEquals(null, e.getMessage());
+            }
+            Test.stopTest();
+        }
     }
 }

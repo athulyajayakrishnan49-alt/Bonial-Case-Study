@@ -1,70 +1,52 @@
-import { LightningElement, api, wire, track } from 'lwc';
+import { LightningElement, api, wire } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation'; // 1. REQUIRED for navigation
 import getProjectData from '@salesforce/apex/ProjectController.getProjectData';
 import { refreshApex } from '@salesforce/apex';
 
 const COLUMNS = [
-    { label: 'Project Name', fieldName: 'Name', type: 'text' },
+    { 
+        label: 'Project Name', 
+        fieldName: 'projectUrl', // This matches the property we create in wiredData
+        type: 'url', 
+        typeAttributes: { 
+            label: { fieldName: 'Name' }, // This keeps the clickable text as the Project Name
+            target: '_self' // Opens in the same tab, use '_blank' for new tab
+        } 
+    },
     { label: 'Status', fieldName: 'Status__c', type: 'text' },
     { label: 'Budget', fieldName: 'Budget__c', type: 'currency' }
 ];
 
-export default class ProjectList extends LightningElement {
+export default class ProjectList extends NavigationMixin(LightningElement) {
     @api recordId;
-    @track allProjects = [];
-    @track filteredProjects = [];
-    @track accountTotalProjects = 0;
-
-    wiredResult;
-
-    columns = COLUMNS;
+    allProjects = [];
+    accountTotalProjects = 0;
     showOnlyActive = false;
-    @track pageNumber = 1;
+    pageNumber = 1;
     pageSize = 5;
+    columns = COLUMNS;
+    wiredResult;
 
     @wire(getProjectData, { accountId: '$recordId' })
     wiredData(result) {
         this.wiredResult = result;
-
         if (result.data) {
-            this.allProjects = result.data.projects;
+            // massaging the data to add the URL property for each row
+            this.allProjects = result.data.projects.map(record => {
+                return {
+                    ...record,
+                    projectUrl: `/lightning/r/Project__c/${record.Id}/view`
+                };
+            });
             this.accountTotalProjects = result.data.totalProjects;
-            this.updateFilter();
-        } else if (result.error) {
-            console.error(result.error);
         }
     }
 
-    // FIX: Manual refresh support
-    refreshData() {
-        refreshApex(this.wiredResult);
-    }
-
-    get hasProjects() {
-        return this.filteredProjects && this.filteredProjects.length > 0;
-    }
-
-    // FIX: Improved empty state message logic
-    get emptyMessage() {
-        if (this.showOnlyActive) {
-            return 'No Active Projects found for this Account.';
-        }
-        return 'No Projects found for this Account.';
-    }
-
-    handleToggleChange(event) {
-        this.showOnlyActive = event.target.checked;
-        this.pageNumber = 1;
-        this.updateFilter();
-    }
-
-    updateFilter() {
-        if (this.showOnlyActive) {
-            this.filteredProjects = this.allProjects.filter(
-                p => p.Status__c === 'Active'
-            );
-        } else {
-            this.filteredProjects = this.allProjects;
-        }
+    
+    get filteredProjects() {
+        return this.showOnlyActive 
+            ? this.allProjects.filter(p => p.Status__c === 'Active') 
+            : this.allProjects;
     }
 
     get displayedProjects() {
@@ -77,9 +59,17 @@ export default class ProjectList extends LightningElement {
         return Math.ceil(this.filteredProjects.length / this.pageSize) || 1;
     }
 
+    get hasProjects() { return this.filteredProjects.length > 0; }
     get isFirstPage() { return this.pageNumber === 1; }
     get isLastPage() { return this.pageNumber >= this.totalPages; }
 
-    handleNext() { if (!this.isLastPage) this.pageNumber++; }
-    handlePrevious() { if (!this.isFirstPage) this.pageNumber--; }
+    handleToggleChange(event) {
+        this.showOnlyActive = event.target.checked;
+        this.pageNumber = 1;
+    }
+
+    handleNext() { if (this.pageNumber < this.totalPages) this.pageNumber++; }
+    handlePrevious() { if (this.pageNumber > 1) this.pageNumber--; }
+
+    @api refresh() { return refreshApex(this.wiredResult); }
 }

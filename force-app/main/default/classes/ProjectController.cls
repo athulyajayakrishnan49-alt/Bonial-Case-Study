@@ -1,39 +1,48 @@
 public with sharing class ProjectController {
+    
+    public class ProjectDataWrapper {
+        @AuraEnabled public String accountName;
+        @AuraEnabled public Integer totalProjects;
+        @AuraEnabled public List<Project__c> projects;
+    }
 
     @AuraEnabled(cacheable=true)
-    public static Map<String, Object> getProjectData(Id accountId) {
+    public static ProjectDataWrapper getProjectData(Id accountId) {
+        ProjectDataWrapper wrapper = new ProjectDataWrapper();
+        
+        try {
+            List<Account> accList = [
+                SELECT Name, Total_Projects__c 
+                FROM Account 
+                WHERE Id = :accountId 
+                WITH USER_MODE 
+                LIMIT 1
+            ];
 
-        Map<String, Object> result = new Map<String, Object>();
+            if (accList.isEmpty()) {
+                wrapper.accountName = 'Unknown Account';
+                wrapper.totalProjects = 0;
+                wrapper.projects = new List<Project__c>();
+                return wrapper;
+            }
 
-        // Safe Account fetch using List to avoid "Query has no rows" errors
-        List<Account> accList = [
-            SELECT Name, Total_Projects__c
-            FROM Account
-            WHERE Id = :accountId
-            LIMIT 1
-        ];
+            wrapper.accountName = accList[0].Name;
+            wrapper.totalProjects = accList[0].Total_Projects__c != null ? (Integer)accList[0].Total_Projects__c : 0;
 
-        if (accList.isEmpty()) {
-            result.put('accountName', 'Unknown Account');
-            result.put('totalProjects', 0);
-            result.put('projects', new List<Project__c>());
-            return result;
+            // Newest projects at the top
+            wrapper.projects = [
+                SELECT Id, Name, Status__c, Budget__c 
+                FROM Project__c 
+                WHERE Account__c = :accountId 
+                WITH USER_MODE 
+                ORDER BY CreatedDate DESC 
+                LIMIT 500
+            ];
+
+        } catch (Exception e) {
+            throw new AuraHandledException(e.getMessage());
         }
 
-        Account acc = accList[0];
-        result.put('accountName', acc.Name);
-        result.put('totalProjects', acc.Total_Projects__c);
-
-        // Fetch projects with a performance LIMIT
-        List<Project__c> projects = [
-            SELECT Id, Name, Status__c, Budget__c
-            FROM Project__c
-            WHERE Account__c = :accountId
-            ORDER BY CreatedDate DESC
-            LIMIT 500
-        ];
-
-        result.put('projects', projects);
-        return result;
+        return wrapper;
     }
 }
