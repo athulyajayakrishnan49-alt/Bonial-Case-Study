@@ -15,7 +15,7 @@ public with sharing class ProjectTriggerHandler {
         if (newProjects != null) {
             for (Project__c p : newProjects) {
                 if (p.Account__c != null) {
-                    accountIds.add(p.Account__c);
+                    accountIds.add(p.Account__c); 
                 }
                 
                 // Handle Re-parenting: collect the OLD account ID too
@@ -75,13 +75,9 @@ public with sharing class ProjectTriggerHandler {
                 // Set recursion guard to false to prevent loops during this DML
                 isFirstRun = false;
                 
-                // USER_MODE enforces CRUD and FLS security
-                Database.update(accountsToUpdate, AccessLevel.USER_MODE);
+                // SYSTEM_MODE allows the trigger to update the field even if it is Read-Only for the user
+                Database.update(accountsToUpdate, AccessLevel.SYSTEM_MODE);
                 
-            } catch (System.SecurityException secEx) {
-                
-                System.debug('Security Error: The current user does not have permission to update Account project totals. ' + secEx.getMessage());
-              
             } catch (System.DmlException dmlEx) {
                
                 for (Integer i = 0; i < dmlEx.getNumDml(); i++) {

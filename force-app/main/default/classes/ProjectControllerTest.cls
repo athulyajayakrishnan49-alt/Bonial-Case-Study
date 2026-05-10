@@ -3,79 +3,102 @@ private class ProjectControllerTest {
 
     @testSetup
     static void setup() {
-        // Create an Account with a project to test successful retrieval
-        Account acc = new Account(Name = 'Test Account', Total_Projects__c = 1);
+        // Create an Account
+        Account acc = new Account(Name = 'Test Account', Total_Projects__c = 2);
         insert acc;
 
-        Project__c proj = new Project__c(
-            Name = 'Test Project', 
+        // Create two projects with different statuses to test filtering
+        Project__c p1 = new Project__c(
+            Name = 'Active Project', 
             Account__c = acc.Id, 
             Status__c = 'Active', 
             Budget__c = 1000
         );
-        insert proj;
+        Project__c p2 = new Project__c(
+            Name = 'Planned Project', 
+            Account__c = acc.Id, 
+            Status__c = 'Planned', 
+            Budget__c = 2000
+        );
+        insert new List<Project__c>{p1, p2};
     }
 
     /**
-     * Test successful data retrieval (Happy Path)
+     * Test Case 1: Fetch all projects (statusFilter = 'All')
+     * Covers the base query path
      */
     @isTest
-    static void testGetProjectDataSuccess() {
+    static void testGetProjectDataAll() {
         Account acc = [SELECT Id FROM Account WHERE Name = 'Test Account' LIMIT 1];
 
         Test.startTest();
-        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(acc.Id);
+        // Passing 'All' should return both projects
+        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(acc.Id, 'All');
         Test.stopTest();
 
-        System.assertNotEquals(null, result, 'Wrapper should not be null');
-        System.assertEquals('Test Account', result.accountName, 'Account name should match');
-        System.assertEquals(1, result.projects.size(), 'Project list size should be 1');
+        System.assertEquals(2, result.projects.size(), 'Should return all projects');
+        System.assertEquals('Test Account', result.accountName);
     }
 
     /**
-     * Test behavior when a non-existent Account ID is provided
+     * Test Case 2: Fetch filtered projects (statusFilter = 'Active')
+     * Covers the 'if (String.isNotBlank...)' dynamic SOQL branch
+     */
+    @isTest
+    static void testGetProjectDataFiltered() {
+        Account acc = [SELECT Id FROM Account WHERE Name = 'Test Account' LIMIT 1];
+
+        Test.startTest();
+        // Passing 'Active' should return only 1 project
+        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(acc.Id, 'Active');
+        Test.stopTest();
+
+        System.assertEquals(1, result.projects.size(), 'Should only return active projects');
+        System.assertEquals('Active Project', result.projects[0].Name);
+    }
+
+    /**
+     * Test Case 3: Invalid Account ID
+     * Covers the 'if (accList.isEmpty())' branch
      */
     @isTest
     static void testGetProjectDataInvalidId() {
-        // Create a fake but validly formatted Account ID using native Apex
-        String fakeIdStr = Account.SObjectType.getDescribe().getKeyPrefix() + '000000000001AAA';
-        Id fakeAccountId = (Id)fakeIdStr;
+        Id fakeAccountId = Id.valueOf(Account.SObjectType.getDescribe().getKeyPrefix() + '000000000001');
 
         Test.startTest();
-        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(fakeAccountId);
+        ProjectController.ProjectDataWrapper result = ProjectController.getProjectData(fakeAccountId, 'All');
         Test.stopTest();
 
-        // This covers the 'if (accList.isEmpty())' branch in your controller
         System.assertEquals('Unknown Account', result.accountName);
         System.assertEquals(0, result.projects.size());
     }
 
     /**
-     * Test Exception handling to cover the catch block
+     * Test Case 4: Exception Handling
+     * Covers the 'catch (Exception e)' branch
      */
     @isTest
     static void testGetProjectDataException() {
-        // Passing null will cause the query to fail/throw exception 
-        // which covers the 'catch (Exception e)' branch
         Test.startTest();
         try {
-            ProjectController.getProjectData(null);
+            // Passing null for Account ID will cause the query to fail inside the try block
+            ProjectController.getProjectData(null, 'All');
         } catch (Exception e) {
-            // AuraHandledException is expected
-            System.assert(e != null);
+            System.assert(e instanceof AuraHandledException, 'Should throw an AuraHandledException');
         }
         Test.stopTest();
     }
-    
+
     /**
-     * Test with a restricted User to cover USER_MODE security failures
+     * Test Case 5: Security/User Mode
+     * Covers USER_MODE and catch block via security restrictions
      */
     @isTest
     static void testUserModeSecurity() {
-        // Use a standard profile that exists in every org
-        Profile p = [SELECT Id FROM Profile WHERE Name='Minimum Access - Salesforce' LIMIT 1]; 
+        // Use a profile with limited access
+        Profile p = [SELECT Id FROM Profile WHERE Name LIKE '%Minimum Access%' OR Name = 'Standard User' LIMIT 1]; 
         User u = new User(
-            Alias = 'testuser', Email='testuser@example.com', 
+            Alias = 'tuser', Email='testuser@example.com', 
             EmailEncodingKey='UTF-8', LastName='Testing', LanguageLocaleKey='en_US', 
             LocaleSidKey='en_US', ProfileId = p.Id, 
             TimeZoneSidKey='America/Los_Angeles', UserName='projecttest' + DateTime.now().getTime() + '@test.com'
@@ -86,9 +109,8 @@ private class ProjectControllerTest {
         System.runAs(u) {
             Test.startTest();
             try {
-                // This covers the catch block via a SecurityException because this user 
-                // lacks access to the custom field or object.
-                ProjectController.getProjectData(acc.Id);
+                // If the user doesn't have FLS for Total_Projects__c, WITH USER_MODE triggers the catch block
+                ProjectController.getProjectData(acc.Id, 'All');
             } catch (AuraHandledException e) {
                 System.assertNotEquals(null, e.getMessage());
             }

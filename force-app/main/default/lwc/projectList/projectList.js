@@ -1,16 +1,16 @@
-import { LightningElement, api, wire } from 'lwc';
-import { NavigationMixin } from 'lightning/navigation'; // 1. REQUIRED for navigation
+import { LightningElement, api, wire, track } from 'lwc';
+import { NavigationMixin } from 'lightning/navigation';
 import getProjectData from '@salesforce/apex/ProjectController.getProjectData';
 import { refreshApex } from '@salesforce/apex';
 
 const COLUMNS = [
     { 
         label: 'Project Name', 
-        fieldName: 'projectUrl', // This matches the property we create in wiredData
+        fieldName: 'projectUrl', 
         type: 'url', 
         typeAttributes: { 
-            label: { fieldName: 'Name' }, // This keeps the clickable text as the Project Name
-            target: '_self' // Opens in the same tab, use '_blank' for new tab
+            label: { fieldName: 'Name' }, 
+            target: '_self' 
         } 
     },
     { label: 'Status', fieldName: 'Status__c', type: 'text' },
@@ -19,19 +19,33 @@ const COLUMNS = [
 
 export default class ProjectList extends NavigationMixin(LightningElement) {
     @api recordId;
-    allProjects = [];
+    @track allProjects = [];
     accountTotalProjects = 0;
-    showOnlyActive = false;
+    
+    // Track current filter status
+    statusFilter = 'All';
+    isToggleActive = false;
+
     pageNumber = 1;
     pageSize = 5;
     columns = COLUMNS;
     wiredResult;
 
-    @wire(getProjectData, { accountId: '$recordId' })
+    // Dropdown options
+    get statusOptions() {
+        return [
+            { label: 'All', value: 'All' },
+            { label: 'Active', value: 'Active' },
+            { label: 'Planned', value: 'Planned' },
+            { label: 'Completed', value: 'Completed' }
+        ];
+    }
+
+    // Updated wire to react to statusFilter changes
+    @wire(getProjectData, { accountId: '$recordId', statusFilter: '$statusFilter' })
     wiredData(result) {
         this.wiredResult = result;
         if (result.data) {
-            // massaging the data to add the URL property for each row
             this.allProjects = result.data.projects.map(record => {
                 return {
                     ...record,
@@ -42,29 +56,33 @@ export default class ProjectList extends NavigationMixin(LightningElement) {
         }
     }
 
-    
-    get filteredProjects() {
-        return this.showOnlyActive 
-            ? this.allProjects.filter(p => p.Status__c === 'Active') 
-            : this.allProjects;
-    }
-
+    // Logic for UI display
     get displayedProjects() {
         const start = (this.pageNumber - 1) * this.pageSize;
         const end = this.pageNumber * this.pageSize;
-        return this.filteredProjects.slice(start, end);
+        return this.allProjects.slice(start, end);
     }
 
     get totalPages() {
-        return Math.ceil(this.filteredProjects.length / this.pageSize) || 1;
+        return Math.ceil(this.allProjects.length / this.pageSize) || 1;
     }
 
-    get hasProjects() { return this.filteredProjects.length > 0; }
+    get hasProjects() { return this.allProjects.length > 0; }
     get isFirstPage() { return this.pageNumber === 1; }
     get isLastPage() { return this.pageNumber >= this.totalPages; }
 
+    // Handler for Dropdown Filter
+    handleStatusChange(event) {
+        this.statusFilter = event.detail.value;
+        // Sync toggle state: if user selects 'Active' in dropdown, turn toggle on. Otherwise off.
+        this.isToggleActive = (this.statusFilter === 'Active');
+        this.pageNumber = 1;
+    }
+
+    // Handler for Toggle Filter
     handleToggleChange(event) {
-        this.showOnlyActive = event.target.checked;
+        this.isToggleActive = event.target.checked;
+        this.statusFilter = this.isToggleActive ? 'Active' : 'All';
         this.pageNumber = 1;
     }
 

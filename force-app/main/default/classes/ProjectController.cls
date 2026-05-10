@@ -7,7 +7,7 @@ public with sharing class ProjectController {
     }
 
     @AuraEnabled(cacheable=true)
-    public static ProjectDataWrapper getProjectData(Id accountId) {
+    public static ProjectDataWrapper getProjectData(Id accountId, String statusFilter) {
         ProjectDataWrapper wrapper = new ProjectDataWrapper();
         
         try {
@@ -29,15 +29,17 @@ public with sharing class ProjectController {
             wrapper.accountName = accList[0].Name;
             wrapper.totalProjects = accList[0].Total_Projects__c != null ? (Integer)accList[0].Total_Projects__c : 0;
 
-            // Newest projects at the top
-            wrapper.projects = [
-                SELECT Id, Name, Status__c, Budget__c 
-                FROM Project__c 
-                WHERE Account__c = :accountId 
-                WITH USER_MODE 
-                ORDER BY CreatedDate DESC 
-                LIMIT 500
-            ];
+            // Build Dynamic Query to support Filtering
+            String query = 'SELECT Id, Name, Status__c, Budget__c FROM Project__c WHERE Account__c = :accountId';
+            
+            // Apply filter if it's not 'All' or blank
+            if (String.isNotBlank(statusFilter) && statusFilter != 'All') {
+                query += ' AND Status__c = :statusFilter';
+            }
+            
+            query += ' WITH USER_MODE ORDER BY CreatedDate DESC LIMIT 500';
+
+            wrapper.projects = Database.query(query);
 
         } catch (Exception e) {
             throw new AuraHandledException(e.getMessage());

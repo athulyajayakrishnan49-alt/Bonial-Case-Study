@@ -8,16 +8,27 @@
         </div>
 
         <div class="slds-p-around_medium">
-            <!-- Filter Toggle -->
-            <div class="slds-m-bottom_small">
-                <lightning-input 
-                    type="toggle" 
-                    label="Show Only Active" 
-                    onchange={handleToggleChange}>
-                </lightning-input>
+            <div class="slds-grid slds-gutters slds-m-bottom_small slds-alignment_absolute-center">
+                <div class="slds-col slds-size_1-of-2">
+                    <lightning-combobox
+                        name="statusFilter"
+                        label="Filter by Status"
+                        value={statusFilter}
+                        options={statusOptions}
+                        onchange={handleStatusChange}>
+                    </lightning-combobox>
+                </div>
+
+                <div class="slds-col slds-size_1-of-2 slds-p-top_large">
+                    <lightning-input 
+                        type="toggle" 
+                        label="Show Only Active" 
+                        checked={isToggleActive}
+                        onchange={handleToggleChange}>
+                    </lightning-input>
+                </div>
             </div>
 
-            <!-- Data Table -->
             <template if:true={hasProjects}>
                 <lightning-datatable
                     key-field="Id"
@@ -26,7 +37,6 @@
                     hide-checkbox-column>
                 </lightning-datatable>
 
-                <!-- Pagination -->
                 <div class="slds-m-top_small slds-grid slds-grid_align-center">
                     <lightning-button label="Previous" onclick={handlePrevious} disabled={isFirstPage}></lightning-button>
                     <span class="slds-p-horizontal_medium">Page {pageNumber} of {totalPages}</span>
@@ -34,9 +44,8 @@
                 </div>
             </template>
 
-            <!-- Empty State -->
             <template if:false={hasProjects}>
-                <p class="slds-text-align_center slds-p-vertical_large">{emptyMessage}</p>
+                <p class="slds-text-align_center slds-p-vertical_large">No projects found for the selected filter.</p>
             </template>
         </div>
     </lightning-card>
